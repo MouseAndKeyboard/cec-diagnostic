@@ -26,28 +26,38 @@ command -v cec-client >/dev/null 2>&1 || {
 # Helper: choose adapter (/dev/cecN)                                        ###
 ###############################################################################
 choose_adapter() {
-  local devs=( /dev/cec* )
-  if (( ${#devs[@]} == 0 )); then
-      echo "No /dev/cec* devices found — check cabling!" ; exit 1
-  elif (( ${#devs[@]} == 1 )); then
-      CEC_ADAPTER=${devs[0]}
-      echo "Using adapter: $CEC_ADAPTER"
-  else
-      echo "Multiple CEC adapters detected:"
-      local i=0
-      for d in "${devs[@]}"; do echo "  [$i] $d"; ((i++)); done
-      while true; do
-          read -rp "Pick adapter number [0-${#devs[@]}-1, Enter=0]: " idx
-          idx=${idx:-0}
-          if [[ $idx =~ ^[0-9]+$ ]] && (( idx>=0 && idx<${#devs[@]} )); then
-              CEC_ADAPTER=${devs[$idx]}
-              echo "Using adapter: $CEC_ADAPTER"
-              break
-          else
-              echo "  ⇢ Invalid choice '$idx'. Try again."
-          fi
-      done
-  fi
+    # We must expand explicitly in case nullglob is off
+    local devs_raw; devs_raw=$(ls -1 /dev/cec* 2>/dev/null || true)
+    IFS=$'\n' read -rd '' -a devs <<<"$devs_raw"
+
+    if (( ${#devs[@]} == 0 )); then
+        echo "❌  No /dev/cec* devices found — check HDMI cable or dtoverlay=cec..."; exit 1
+    fi
+
+    # One adapter → auto-select
+    if (( ${#devs[@]} == 1 )); then
+        CEC_ADAPTER=${devs[0]}
+        echo "📌  Using sole adapter: $CEC_ADAPTER"
+        return
+    fi
+
+    # Multiple adapters → show menu
+    echo "⬇︎ Multiple CEC adapters detected:"
+    local i=0
+    for d in "${devs[@]}"; do printf "   [%d]  %s\n" "$i" "$d"; ((i++)); done
+
+    # Read until we get a sane number
+    while true; do
+        if ! read -rp "Pick adapter number [0-$((i-1)) , ENTER=0] : " idx; then
+            echo "Read error (maybe piped input?). Aborting."; exit 1
+        fi
+        [[ -z $idx ]] && idx=0                       # default
+        [[ $idx =~ ^[0-9]+$ ]] || { echo "  ⇢ not a number."; continue; }
+        (( idx>=0 && idx<i )) || { echo "  ⇢ out of range."; continue; }
+        CEC_ADAPTER=${devs[$idx]}
+        echo "📌  Using adapter: $CEC_ADAPTER"
+        break
+    done
 }
 
 
