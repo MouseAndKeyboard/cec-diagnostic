@@ -26,20 +26,30 @@ command -v cec-client >/dev/null 2>&1 || {
 # Helper: choose adapter (/dev/cecN)                                        ###
 ###############################################################################
 choose_adapter() {
-  local devs=($(ls /dev/cec* 2>/dev/null || true))
-  if (( ${#devs[@]}==0 )); then
-      echo "No /dev/cec* devices found — check your cabling!" ; exit 1
-  elif (( ${#devs[@]}==1 )); then
+  local devs=( /dev/cec* )
+  if (( ${#devs[@]} == 0 )); then
+      echo "No /dev/cec* devices found — check cabling!" ; exit 1
+  elif (( ${#devs[@]} == 1 )); then
       CEC_ADAPTER=${devs[0]}
       echo "Using adapter: $CEC_ADAPTER"
   else
       echo "Multiple CEC adapters detected:"
       local i=0
       for d in "${devs[@]}"; do echo "  [$i] $d"; ((i++)); done
-      read -rp "Pick adapter number: " idx
-      CEC_ADAPTER=${devs[$idx]}
+      while true; do
+          read -rp "Pick adapter number [0-${#devs[@]}-1, Enter=0]: " idx
+          idx=${idx:-0}
+          if [[ $idx =~ ^[0-9]+$ ]] && (( idx>=0 && idx<${#devs[@]} )); then
+              CEC_ADAPTER=${devs[$idx]}
+              echo "Using adapter: $CEC_ADAPTER"
+              break
+          else
+              echo "  ⇢ Invalid choice '$idx'. Try again."
+          fi
+      done
   fi
 }
+
 
 ###############################################################################
 # Helper: run a silent cec-client one-shot command                           ###
